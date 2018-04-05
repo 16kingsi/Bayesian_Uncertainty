@@ -51,34 +51,31 @@ public class ExactInference {
 
             //for each value xi that X can have
             for (Object v: X.variable.domain){
-                Q.put(v,enumerateAll(bn.getVariableListTopologicallySorted(),observedEvidence));
+        	    Assignment newAss = observedEvidence.copy();
+        	    newAss.put(X.variable, v);
+        	    double num = enumerateAll(bn.getVariableListTopologicallySorted(), newAss);
+                Q.put(v,num);
             }
-
             Q.normalize();
             return Q;
         }
 
 
         protected double enumerateAll(List<RandomVariable> vars, Assignment e) {
-            double sum = 0;
-            if (vars.isEmpty())
-                return 1;
-
-            RandomVariable Y = (RandomVariable) vars.toArray()[0];
-            System.out.println("Y = "+Y +", and can be "+Y.domain);
-            System.out.println("e = "+e);
-
-            //Y is assigned a value in e
-            if (e.containsValue(Y)){
-                //return P(Y=y | values assigned to Y’s parents in e) × ENUMERATE-ALL(REST(vars), e)
-                return network.getProb(Y,e) * enumerateAll(vars.subList(1,vars.size()),e);
+            if (vars.isEmpty()){
+                return 1.0;
             }
-            else{
-
+            RandomVariable Y = (RandomVariable) vars.toArray()[0];
+            if (e.containsKey(Y)){
+                return network.getProb(Y,e) * enumerateAll(vars.subList(1,vars.size()),e);
+            } else {
+                double sum = 0;
                 for (Object o: Y.domain){
-                    System.out.println(o);
-                    e.set(Y,o);     //e doesn't contain Y?
-                    sum +=  network.getProb(((RandomVariable) e.get(o)),e) * enumerateAll(vars.subList(1,vars.size()),e);
+                    Assignment newAss = e.copy();
+                    newAss.put(Y, o);
+                    double prob = network.getProb(Y,newAss);
+                    double enumer = enumerateAll(vars.subList(1,vars.size()),newAss);
+                    sum +=  prob * enumer;
                 }
                 return sum;
             }
