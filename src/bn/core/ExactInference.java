@@ -1,10 +1,8 @@
 package bn.core;
 
-import bn.parser.XMLBIFParser;
-import bn.util.ArraySet;
-import com.sun.org.glassfish.gmbal.ParameterNames;
-import org.xml.sax.SAXException;
 import bn.core.BayesianNetwork.Node;
+import bn.parser.XMLBIFParser;
+import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
@@ -14,16 +12,14 @@ import java.util.List;
  * @author BAC on 3/30/2018.
  */
 public class ExactInference {
-    String file = "/Uncertain_Inference/src/bn/examples/";
+    String file = "/src/bn/examples/";
     static BayesianNetwork network = null;
     public ExactInference(String file){
         this.file += file;
-        //System.out.println(file);
+//        System.out.println(file);
     }
 
     public static void main(String[] args) {
-        network = null;
-
         try {
              network = new XMLBIFParser().readNetworkFromFile(args[0]);
         } catch (IOException e) {
@@ -35,12 +31,19 @@ public class ExactInference {
         }
 
         // ---- network is read and stored ----
-
         ExactInference inference = new ExactInference(args[0]);
-        Distribution d = inference.enumerationAsk(network.getNodeForVariable(network.getVariableByName(args[1])),null,network);
+        Node query = network.getNodeForVariable(network.getVariableByName(args[1]));
+        Assignment evidence = new Assignment();
+        evidence.put(network.getVariableByName(args[2]),args[3]);
+        evidence.put(network.getVariableByName(args[4]),args[5]);
+
+
+        System.out.println("You're asking about: "+query.variable+", given: "+evidence);
+
+        Distribution d = inference.enumerationAsk(query,evidence,network);
 
         System.out.println(d);
-        System.out.println(network.nodes);
+        //System.out.println(network.nodes);
     }
 
         public Distribution enumerationAsk(Node X, Assignment observedEvidence, BayesianNetwork bn) {
@@ -57,12 +60,13 @@ public class ExactInference {
 
 
         protected double enumerateAll(List<RandomVariable> vars, Assignment e) {
-
+            double sum = 0;
             if (vars.isEmpty())
                 return 1;
 
             RandomVariable Y = (RandomVariable) vars.toArray()[0];
-            Node nodeY = network.getNodeForVariable(Y);
+            System.out.println("Y = "+Y +", and can be "+Y.domain);
+            System.out.println("e = "+e);
 
             //Y is assigned a value in e
             if (e.containsValue(Y)){
@@ -70,8 +74,13 @@ public class ExactInference {
                 return network.getProb(Y,e) * enumerateAll(vars.subList(1,vars.size()),e);
             }
             else{
-                return network.getProb(Y,e) * enumerateAll(vars.subList(1,vars.size()),e);
 
+                for (Object o: Y.domain){
+                    System.out.println(o);
+                    e.set(Y,o);     //e doesn't contain Y?
+                    sum +=  network.getProb(((RandomVariable) e.get(o)),e) * enumerateAll(vars.subList(1,vars.size()),e);
+                }
+                return sum;
             }
 
         }

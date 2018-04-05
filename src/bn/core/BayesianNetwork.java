@@ -234,6 +234,7 @@ public class BayesianNetwork {
 		return node;
 	    }
 	}
+//		System.out.println(var);
 	throw new NoSuchElementException();
     }
 
