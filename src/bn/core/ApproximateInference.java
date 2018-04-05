@@ -1,5 +1,10 @@
 package bn.core;
 
+import bn.parser.XMLBIFParser;
+import jdk.internal.org.xml.sax.SAXException;
+
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -12,23 +17,35 @@ public class ApproximateInference {
 
     public static void main(String[] args) {
 
-        BayesianNetwork bn = new BayesianNetwork();
-        bn.createDefault();
-        RandomVariable A = bn.getVariableByName("A");
-        RandomVariable B = bn.getVariableByName("B");
-        RandomVariable C = bn.getVariableByName("C");
 
-        Assignment e = new Assignment();
-        e.set(B, B.getDomain().get(0));
-        e.set(C, C.getDomain().get(1));
+        BayesianNetwork network = null;
 
-        int sampleNum = 10000;
+        try {
+            network = new XMLBIFParser().readNetworkFromFile(args[1]);
+        } catch (IOException f) {
+            f.printStackTrace();
+        } catch (ParserConfigurationException f) {
+            f.printStackTrace();
+        } catch (org.xml.sax.SAXException e1) {
+            e1.printStackTrace();
+        }
 
-        Distribution d = rejectionSampling(A, e, bn, sampleNum);
-        System.out.println(d);
+        int samples = Integer.parseInt(args[0]);
 
-        e.set(A, A.getDomain().get(0));
-        System.out.println("actual a1: " + bn.getNodeForVariable(A).cpt.get(e));
+        RandomVariable X = network.getVariableByName(args[2]);
+
+        Assignment evidence = new Assignment();
+        for (int i = 3; i < args.length; i += 2){
+            RandomVariable e = network.getVariableByName(args[i]);
+            evidence.put(e, args[i+1]);
+        }
+
+        Distribution rejectD = rejectionSampling(X, evidence, network, samples);
+        Distribution likelihoodD = likelihoodWeighting(X, evidence, network, samples);
+        System.out.println("rejectD: ------\n" + rejectD);
+        System.out.println("likelihoodD: -------\n" + likelihoodD);
+        System.out.println("Finished");
+        
 
 
     }
@@ -63,6 +80,43 @@ public class ApproximateInference {
 
             }
             return true;
+    }
+
+    public static Distribution likelihoodWeighting(RandomVariable X, Assignment e, BayesianNetwork bn, int N){
+        Distribution W = new Distribution(X);
+        for (Object o : X.getDomain()){
+            W.put(o, 0);
         }
+        for (int i = 0; i < N; i++){
+            Object[] x_w = weightedSample(bn, e);
+            Assignment x = (Assignment)x_w[0];
+            Double w = (Double)x_w[1];
+//    		System.out.println(i + " weight: " + w);
+//    		System.out.println(x.get(X));
+//    		if (x.get(X).equals("true")){
+//    			throw new NullPointerException();
+//    		}
+            W.put(x.get(X),W.get(x.get(X)) + w);
+        }
+        W.normalize();
+        return W;
+    }
+
+    public static Object[] weightedSample(BayesianNetwork bn, Assignment e) {
+        Assignment assignment = e.copy();
+        Double w = 1.0;
+        for (RandomVariable X : bn.getVariableListTopologicallySorted()) {
+            if (e.containsKey(X)) {
+                Double prob = bn.getProb(X, assignment);
+//    			System.out.println("prob(" + X.name + ") = " + prob);
+                w *= prob;
+            } else {
+                Object o = bn.getNodeForVariable(X).randomSampleGivenParents(assignment);
+//    			System.out.println(X.name + " = " + o);
+                assignment.put(X, o);
+            }
+        }
+        return new Object[]{assignment, w};
+    }
 
 }
